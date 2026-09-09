@@ -28,9 +28,9 @@ spring:
 # para que los tokens generados por ms-usuarios sean válidos en
 # ms-catalogo y ms-recursos.
 # Para dar el valor al "secret" trasformaremos la frase clave (inventada) 
-# "tokenSecretKeyBiblioteca2026TriskeleduSecurity" a formato Base64
+
 jwt:
-  secret: "dG9rZW5TZWNyZXRLZXlCaWJsaW90ZWNhMjAyNlRyaXNrZWxlZHVTZWN1cml0eQ=="
+  secret: ${JWT_SECRET}
   expiration-ms: 3600000   # 1 hora en milisegundos
 # [JJWT-FIN]
 

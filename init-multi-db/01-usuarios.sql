@@ -13,7 +13,7 @@ DROP TABLE IF EXISTS usuarios;
 
 -- 2. TABLAS MAESTRAS
 CREATE TABLE usuarios (
-    id                INT          AUTO_INCREMENT PRIMARY KEY,
+    id                BIGINT       AUTO_INCREMENT PRIMARY KEY,
     nombre            VARCHAR(150) NOT NULL,
     apellido          VARCHAR(150) NOT NULL,
     email             VARCHAR(150) UNIQUE NOT NULL,
@@ -24,38 +24,50 @@ CREATE TABLE usuarios (
 ) ENGINE=InnoDB;
 
 CREATE TABLE perfil_usuarios (
-    id                INT          AUTO_INCREMENT PRIMARY KEY,
+    id                BIGINT       AUTO_INCREMENT PRIMARY KEY,
     usuario_email     VARCHAR(150) UNIQUE NOT NULL,
     telefono          VARCHAR(30),
     direccion         VARCHAR(180),
     fecha_registro    DATE         NOT NULL DEFAULT (CURRENT_DATE),
-    CONSTRAINT fk_perfil_usuario FOREIGN KEY (usuario_email) REFERENCES usuarios(email) ON DELETE CASCADE
+    CONSTRAINT fk_perfil_usuario
+        FOREIGN KEY (usuario_email)
+        REFERENCES usuarios(email)
+        ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE credenciales_usuarios (
-    id                INT          AUTO_INCREMENT PRIMARY KEY,
+    id                BIGINT       AUTO_INCREMENT PRIMARY KEY,
     usuario_email     VARCHAR(150) UNIQUE NOT NULL,
     ultimo_acceso     TIMESTAMP    NULL,
     bloqueado         BOOLEAN      NOT NULL DEFAULT FALSE,
     intentos_fallidos INT          NOT NULL DEFAULT 0 CHECK (intentos_fallidos >= 0),
-    CONSTRAINT fk_credenciales_usuario FOREIGN KEY (usuario_email) REFERENCES usuarios(email) ON DELETE CASCADE
+    CONSTRAINT fk_credenciales_usuario
+        FOREIGN KEY (usuario_email)
+        REFERENCES usuarios(email)
+        ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE INDEX idx_usuarios_rol ON usuarios(rol);
-CREATE INDEX idx_usuarios_activo ON usuarios(activo);
-CREATE INDEX idx_perfil_usuario_email ON perfil_usuarios(usuario_email);
+CREATE INDEX idx_usuarios_rol
+    ON usuarios(rol);
+
+CREATE INDEX idx_usuarios_activo
+    ON usuarios(activo);
+
+CREATE INDEX idx_perfil_usuario_email
+    ON perfil_usuarios(usuario_email);
 
 -- 3. DATOS DE PRUEBA
 -- [JJWT-INI]
--- La contraseña por defecto fue configurada como 'Biblio@2026' para todos los usuarios, y está almacenada como
--- hash (huella digital) utilizando el algoritmo BCrypt (generado con BCryptPasswordEncoder de Spring Security).
+-- La contraseña por defecto fue configurada como 'Biblio@2026'
+-- para todos los usuarios, y está almacenada como hash utilizando
+-- el algoritmo BCrypt.
 INSERT INTO usuarios (nombre, apellido, email, password, rol) VALUES
-('Ana',      'Aguilar',   'ana@administrador.cl',     '$2b$10$1hnbaMR7iTsdn3D0gG5Q8eUw5aSh9O2at2e4u1iAlzdhD6m4dzVZO',  'Administrador'),
-('Andrés',   'Acosta',    'andres@administrador.cl',  '$2b$10$1hnbaMR7iTsdn3D0gG5Q8eUw5aSh9O2at2e4u1iAlzdhD6m4dzVZO',  'Administrador'),
-('Adrián',   'Álvarez',   'adrian@administrador.cl',  '$2b$10$1hnbaMR7iTsdn3D0gG5Q8eUw5aSh9O2at2e4u1iAlzdhD6m4dzVZO',  'Administrador'),
-('Beatriz',  'Bermúdez',  'beatriz@bibliotecario.cl', '$2b$10$1hnbaMR7iTsdn3D0gG5Q8eUw5aSh9O2at2e4u1iAlzdhD6m4dzVZO',  'Bibliotecario'),
-('Benito',   'Barrios',   'benito@bibliotecario.cl',  '$2b$10$1hnbaMR7iTsdn3D0gG5Q8eUw5aSh9O2at2e4u1iAlzdhD6m4dzVZO',  'Bibliotecario'),
-('Belén',    'Bravo',     'belen@bibliotecario.cl',   '$2b$10$1hnbaMR7iTsdn3D0gG5Q8eUw5aSh9O2at2e4u1iAlzdhD6m4dzVZO',  'Bibliotecario'),
+('Ana',      'Aguilar',   'ana@administrador.cl',     '$2b$10$1hnbaMR7iTsdn3D0gG5Q8eUw5aSh9O2at2e4u1iAlzdhD6m4dzVZO', 'Administrador'),
+('Andrés',   'Acosta',    'andres@administrador.cl',  '$2b$10$1hnbaMR7iTsdn3D0gG5Q8eUw5aSh9O2at2e4u1iAlzdhD6m4dzVZO', 'Administrador'),
+('Adrián',   'Álvarez',   'adrian@administrador.cl',  '$2b$10$1hnbaMR7iTsdn3D0gG5Q8eUw5aSh9O2at2e4u1iAlzdhD6m4dzVZO', 'Administrador'),
+('Beatriz',  'Bermúdez',  'beatriz@bibliotecario.cl', '$2b$10$1hnbaMR7iTsdn3D0gG5Q8eUw5aSh9O2at2e4u1iAlzdhD6m4dzVZO', 'Bibliotecario'),
+('Benito',   'Barrios',   'benito@bibliotecario.cl',  '$2b$10$1hnbaMR7iTsdn3D0gG5Q8eUw5aSh9O2at2e4u1iAlzdhD6m4dzVZO', 'Bibliotecario'),
+('Belén',    'Bravo',     'belen@bibliotecario.cl',   '$2b$10$1hnbaMR7iTsdn3D0gG5Q8eUw5aSh9O2at2e4u1iAlzdhD6m4dzVZO', 'Bibliotecario'),
 ('Carlos',   'Contreras', 'carlos@cliente.cl',        '$2b$10$1hnbaMR7iTsdn3D0gG5Q8eUw5aSh9O2at2e4u1iAlzdhD6m4dzVZO', 'Cliente'),
 ('Camila',   'Cervantes', 'camila@cliente.cl',        '$2b$10$1hnbaMR7iTsdn3D0gG5Q8eUw5aSh9O2at2e4u1iAlzdhD6m4dzVZO', 'Cliente'),
 ('Cristian', 'Castro',    'cristian@cliente.cl',      '$2b$10$1hnbaMR7iTsdn3D0gG5Q8eUw5aSh9O2at2e4u1iAlzdhD6m4dzVZO', 'Cliente');
@@ -68,7 +80,8 @@ INSERT INTO perfil_usuarios (usuario_email, telefono, direccion) VALUES
 ('camila@cliente.cl',        NULL,           'Valparaíso'),
 ('cristian@cliente.cl',      '+56955555555', 'La Serena');
 
-INSERT INTO credenciales_usuarios (usuario_email, ultimo_acceso, bloqueado, intentos_fallidos) VALUES
+INSERT INTO credenciales_usuarios
+(usuario_email, ultimo_acceso, bloqueado, intentos_fallidos) VALUES
 ('ana@administrador.cl',     NOW(), FALSE, 0),
 ('beatriz@bibliotecario.cl', NOW(), FALSE, 0),
 ('carlos@cliente.cl',        NOW(), FALSE, 1),
