@@ -25,11 +25,6 @@ jobs:
           chmod +x mvnw
           ./mvnw -B clean package -DskipTests
       
-      - name: Verificar JARs generados
-        run: |
-          echo "JARs encontrados:"
-          find . -path "*/target/*.jar" -type f
-      
       - name: Copiar JARs a la instancia EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -40,3 +35,55 @@ jobs:
           source: "eureka/target/cl-triskeledu-eureka-1.0-SNAPSHOT.jar,ms-usuarios/target/cl-triskeledu-usuarios-0.0.1-SNAPSHOT.jar,ms-catalogo/target/cl-triskeledu-catalogo-0.0.1-SNAPSHOT.jar,ms-recursos/target/cl-triskeledu-recursos-0.0.1-SNAPSHOT.jar,api-gateway/target/cl-triskeledu-gateway-0.0.1-SNAPSHOT.jar"
           target: "/home/${{ secrets.EC2_USER }}/micros"
           strip_components: 2
+            
+      - name: Configurar variables de entorno en EC2
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_URL_USUARIOS: ${{ secrets.DB_URL_USUARIOS }}
+          DB_URL_CATALOGO: ${{ secrets.DB_URL_CATALOGO }}
+          DB_URL_RECURSOS: ${{ secrets.DB_URL_RECURSOS }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT || 22 }}
+          envs: DB_USERNAME,DB_PASSWORD,DB_URL_USUARIOS,DB_URL_CATALOGO,DB_URL_RECURSOS,JWT_SECRET
+          script: |
+            sudo mkdir -p /etc/biblioteca
+
+            sudo tee /etc/biblioteca/usuarios.env > /dev/null <<EOF
+            SPRING_PROFILES_ACTIVE=prod
+            DB_URL=$DB_URL_USUARIOS
+            DB_USERNAME=$DB_USERNAME
+            DB_PASSWORD=$DB_PASSWORD
+            EUREKA_URL=http://localhost:8761/eureka
+            JWT_SECRET=$JWT_SECRET
+            EOF
+
+            sudo tee /etc/biblioteca/catalogo.env > /dev/null <<EOF
+            SPRING_PROFILES_ACTIVE=prod
+            DB_URL=$DB_URL_CATALOGO
+            DB_USERNAME=$DB_USERNAME
+            DB_PASSWORD=$DB_PASSWORD
+            EUREKA_URL=http://localhost:8761/eureka
+            JWT_SECRET=$JWT_SECRET
+            EOF
+
+            sudo tee /etc/biblioteca/recursos.env > /dev/null <<EOF
+            SPRING_PROFILES_ACTIVE=prod
+            DB_URL=$DB_URL_RECURSOS
+            DB_USERNAME=$DB_USERNAME
+            DB_PASSWORD=$DB_PASSWORD
+            EUREKA_URL=http://localhost:8761/eureka
+            JWT_SECRET=$JWT_SECRET
+            EOF
+
+            sudo tee /etc/biblioteca/gateway.env > /dev/null <<EOF
+            SPRING_PROFILES_ACTIVE=prod
+            EUREKA_URL=http://localhost:8761/eureka
+            EOF
+
+            sudo chmod 600 /etc/biblioteca/*.env
