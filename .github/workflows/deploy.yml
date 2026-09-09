@@ -87,3 +87,49 @@ jobs:
             EOF
 
             sudo chmod 600 /etc/biblioteca/*.env
+
+      - name: Reiniciar servicios y verificar health
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT || 22 }}
+          script: |
+            set -e
+
+            wait_for_health() {
+              SERVICE_NAME=$1
+              URL=$2
+
+              echo "Esperando a $SERVICE_NAME..."
+
+              for i in {1..30}; do
+                if curl -fsS "$URL" > /dev/null; then
+                  echo "$SERVICE_NAME esta UP"
+                  return 0
+                fi
+
+                sleep 3
+              done
+
+              echo "ERROR: $SERVICE_NAME no respondio correctamente"
+              exit 1
+            }
+
+            sudo systemctl restart biblioteca-eureka.service
+            wait_for_health "Eureka" "http://localhost:8761/actuator/health"
+
+            sudo systemctl restart biblioteca-usuarios.service
+            wait_for_health "MS Usuarios" "http://localhost:9001/actuator/health"
+
+            sudo systemctl restart biblioteca-catalogo.service
+            wait_for_health "MS Catalogo" "http://localhost:9002/actuator/health"
+
+            sudo systemctl restart biblioteca-recursos.service
+            wait_for_health "MS Recursos" "http://localhost:9003/actuator/health"
+
+            sudo systemctl restart biblioteca-gateway.service
+            wait_for_health "API Gateway" "http://localhost:9000/actuator/health"
+
+            echo "Despliegue completado correctamente"
