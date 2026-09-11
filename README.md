@@ -1,142 +1,308 @@
-# Instrucciones de ejecución — Proyecto Biblioteca (Spring Boot + MySQL)
+# Biblioteca
 
-Guía paso a paso para dejar el proyecto corriendo en VS Code usando **MySQL** como base de datos.
+Proyecto de microservicios desarrollado con **Spring Boot**, desplegado en **AWS EC2** y conectado a una base de datos **Amazon RDS MySQL**. El proyecto utiliza **Eureka** para descubrimiento de servicios, **API Gateway** como punto de entrada y **GitHub Actions** para automatizar la compilación y el despliegue.
 
----
+## Arquitectura general
 
-## 1. Requisitos previos
+El proyecto está compuesto por los siguientes módulos:
 
-Instala esto antes de empezar:
+- `common`: módulo compartido entre microservicios.
+- `eureka`: servidor de descubrimiento de servicios.
+- `ms-usuarios`: microservicio de usuarios y autenticación.
+- `ms-catalogo`: microservicio de catálogo.
+- `ms-recursos`: microservicio de recursos.
+- `api-gateway`: puerta de entrada a los microservicios.
+- `init-multi-db`: scripts de inicialización de bases de datos.
+- `postman`: recursos para pruebas de API.
 
-1. **JDK 21** (`java -version` debe mostrar 21).
-2. **MySQL Server 8.x** (necesario por los `CHECK` de las tablas, requieren MySQL 8.0.16+).
-3. **MySQL Workbench** (o el cliente `mysql` de línea de comandos) para crear las bases de datos.
-4. **Visual Studio Code**, con estas extensiones:
-   - `Extension Pack for Java` (Microsoft)
-   - `Spring Boot Extension Pack` (VMware/Microsoft)
+## Prerrequisitos
 
----
+Para ejecutar el proyecto localmente se requiere:
 
-## 2. Configurar la contraseña de MySQL
+- Java 21.
+- Maven Wrapper incluido en el repositorio.
+- MySQL 8 o compatible.
+- Git.
+- Acceso a las variables de entorno necesarias para conexión a base de datos y seguridad JWT.
 
-El proyecto usa por defecto:
-- Usuario: `root`
-- Contraseña: `alone15`
+Para el despliegue en AWS se requiere:
 
-Si tu MySQL local tiene otra contraseña de `root`, ábrela y cámbiala en estos 3 archivos (busca la línea `password:`):
+- Una instancia EC2 con Ubuntu.
+- Java 21 instalado en la EC2.
+- Una instancia Amazon RDS MySQL.
+- Acceso SSH a la instancia EC2.
+- GitHub Secrets configurados en el repositorio.
+- Servicios `systemd` configurados para cada microservicio.
 
-- `ms-usuarios/src/main/resources/application.yml`
-- `ms-catalogo/src/main/resources/application.yml`
-- `ms-recursos/src/main/resources/application.yml`
+## Variables de entorno
 
----
+Los microservicios utilizan variables de entorno para evitar almacenar credenciales directamente en el código.
 
-## 3. Crear las bases de datos y las tablas
+Variables utilizadas:
 
-Los scripts SQL ya están listos en la carpeta `init-multi-db/`. Debes ejecutarlos **en este orden exacto**:
-
-1. `00-create_dbs.sql` → crea todas las bases de datos.
-2. `01-usuarios.sql` → crea las tablas del microservicio `usuarios` + datos de prueba.
-3. `02-catalogo.sql` → crea las tablas del microservicio `catalogo` + datos de prueba.
-4. `03-recursos.sql` → crea las tablas del microservicio `recursos` + datos de prueba.
-
-### Opción A — MySQL Workbench (recomendada, más simple)
-
-1. Abre MySQL Workbench y conéctate a tu servidor local (`root` / tu contraseña).
-2. Abre `init-multi-db/00-create_dbs.sql` (File → Open SQL Script) y ejecútalo completo (rayo ⚡).
-3. Repite lo mismo, en orden, con `01-usuarios.sql`, `02-catalogo.sql` y `03-recursos.sql`.
-
-### Opción B — Línea de comandos
-
-Desde la carpeta raíz del proyecto, ejecuta uno por uno (te pedirá la contraseña de `root`):
-
-```bash
-mysql -u root -p < init-multi-db/00-create_dbs.sql
-mysql -u root -p < init-multi-db/01-usuarios.sql
-mysql -u root -p < init-multi-db/02-catalogo.sql
-mysql -u root -p < init-multi-db/03-recursos.sql
+```text
+DB_URL
+DB_USERNAME
+DB_PASSWORD
+EUREKA_URL
+JWT_SECRET
 ```
 
-> ✅ Al terminar deberías tener 3 bases con datos: `usuarios`, `catalogo`, `recursos` (las demás bases que crea el script 00 quedan vacías, reservadas para futuros microservicios).
+En el entorno desplegado, estas variables se gestionan mediante **GitHub Secrets** y se escriben en archivos de entorno dentro de la EC2.
 
----
+Los principales secretos configurados en GitHub son:
 
-## 4. Abrir el proyecto en VS Code
-
-1. Abre VS Code → `File > Open Folder...` → selecciona la carpeta raíz `Biblioteca-Springboot` (la que contiene el `pom.xml` principal).
-2. Espera a que la extensión de Java termine de importar los módulos Maven (ícono de carga en la barra inferior).
-
----
-
-## 5. Compilar todo el proyecto
-
-Abre una terminal integrada en VS Code (`Terminal > New Terminal`) en la raíz del proyecto y ejecuta:
-
-```bash
-mvn clean install -DskipTests
+```text
+DB_USERNAME
+DB_PASSWORD
+DB_URL_USUARIOS
+DB_URL_CATALOGO
+DB_URL_RECURSOS
+JWT_SECRET
+EC2_HOST
+EC2_USER
+EC2_PORT
+EC2_SSH_KEY
 ```
 
-Esto compila `common`, `eureka`, `ms-usuarios`, `ms-catalogo`, `ms-recursos`, `api-gateway` y `ms-vehiculos` en el orden correcto (Maven resuelve las dependencias entre módulos automáticamente).
+> Importante: nunca se deben subir contraseñas, llaves privadas ni secretos JWT directamente al repositorio.
 
----
+## Instalación y puesta en marcha local
 
-## 6. Orden de ejecución de los servicios
+Clonar el repositorio:
 
-⚠️ **Importante:** los microservicios no se levantan todos a la vez ni en cualquier orden. Deben iniciarse **uno por uno, en este orden**, esperando ~15-20 segundos entre cada uno para que se registren en Eureka:
+```bash
+git clone https://github.com/belruz/Biblioteca-Springboot.git
+cd Biblioteca-Springboot
+```
 
-| Orden | Servicio | Clase principal | Puerto |
-|---|---|---|---|
-| 1️⃣ | Eureka Server | `eureka/src/main/java/cl/triskeledu/eureka/BibliotecaEurekaApplication.java` | 8761 |
-| 2️⃣ | MS Usuarios | `ms-usuarios/src/main/java/cl/triskeledu/usuarios/BibliotecaUsuariosApplication.java` | 9001 |
-| 3️⃣ | MS Catálogo | `ms-catalogo/src/main/java/cl/triskeledu/catalogo/BibliotecaCatalogoApplication.java` | 9002 |
-| 4️⃣ | MS Recursos | `ms-recursos/src/main/java/cl/triskeledu/recursos/BibliotecaRecursosApplication.java` | 9003 |
-| 5️⃣ | API Gateway | `api-gateway/src/main/java/cl/triskeledu/gateway/BibliotecaGatewayApplication.java` | 9000 |
+En Windows, compilar el proyecto con:
 
-### Cómo iniciar cada uno en VS Code
+```powershell
+.\mvnw.cmd clean install -DskipTests
+```
 
-Para cada clase de la tabla, en ese orden:
+En Linux o macOS:
 
-1. Abre el archivo `...Application.java` correspondiente.
-2. Haz clic en **`Run`** (aparece justo encima del método `main`), o clic derecho → **`Run Java`**.
-3. Espera a ver en la consola el mensaje `Started ...Application` antes de iniciar el siguiente.
+```bash
+./mvnw clean install -DskipTests
+```
 
-No hace falta ejecutar nada del módulo `common` (es solo una librería compartida, ya se compiló en el paso 5).
+Para ejecutar un módulo individual, ingresar a su carpeta y ejecutar el Maven Wrapper.
 
----
+Ejemplo para Eureka:
 
-## 7. Verificar que todo quedó funcionando
+```powershell
+cd eureka
+..\mvnw.cmd spring-boot:run
+```
 
-- **Eureka Dashboard** (deben aparecer los 4 servicios registrados): http://localhost:8761
-- **Swagger de cada microservicio**:
-  - Usuarios: http://localhost:9001/swagger-ui.html
-  - Catálogo: http://localhost:9002/swagger-ui.html
-  - Recursos: http://localhost:9003/swagger-ui.html
-- **API Gateway** (punto de entrada único): http://localhost:9000
+Ejemplo para `ms-usuarios`:
 
-Puedes probar los endpoints con la colección de Postman incluida en la carpeta `postman/`.
+```powershell
+cd ms-usuarios
+..\mvnw.cmd spring-boot:run
+```
 
----
+Los servicios deben iniciarse respetando el siguiente orden:
 
-## 8. Microservicio extra: Vehículos (standalone)
+```text
+Eureka
+→ MS Usuarios
+→ MS Catálogo
+→ MS Recursos
+→ API Gateway
+```
 
-`ms-vehiculos` es independiente del resto: **no usa Eureka, no pasa por el API Gateway y no tiene seguridad JWT**. Es un CRUD simple con Swagger que se levanta solo.
+## Bases de datos
 
-1. Crea su base de datos (solo hace falta crearla vacía, las tablas las crea Hibernate solo al arrancar):
-   ```sql
-   CREATE DATABASE vehiculos;
-   ```
-   (con MySQL Workbench o `mysql -u root -p -e "CREATE DATABASE vehiculos;"`)
-2. Si tu contraseña de `root` es distinta a `alone15`, ajústala en `ms-vehiculos/src/main/resources/application.yml`.
-3. Abre `ms-vehiculos/src/main/java/cl/triskeledu/vehiculos/BibliotecaVehiculosApplication.java` y dale **Run**. No depende de ningún otro servicio, se puede iniciar en cualquier momento.
-4. Swagger: http://localhost:9004/swagger-ui.html
+El proyecto utiliza tres bases de datos principales:
 
-Endpoints disponibles bajo `/api/v1/vehiculos`: `GET` (listar), `GET /{id}`, `POST`, `PUT /{id}`, `DELETE /{id}`.
+```text
+usuarios
+catalogo
+recursos
+```
 
----
+En MySQL se pueden revisar con:
 
-## 9. Problemas comunes
+```sql
+SHOW DATABASES;
+```
 
-- **`Access denied for user 'root'@'localhost'`** → la contraseña en `application.yml` no coincide con tu MySQL. Revisa el paso 2.
-- **`Unknown database 'usuarios'`** → no ejecutaste (o falló) `00-create_dbs.sql`. Repite el paso 3.
-- **Un microservicio no aparece en Eureka** → asegúrate de haber iniciado `eureka` primero y de esperar unos segundos antes de levantar los demás.
-- **Error de `CHECK constraint`** → verifica que tu versión de MySQL sea 8.0.16 o superior (`SELECT VERSION();`).
+Para visualizar las tablas de una base de datos:
+
+```sql
+USE usuarios;
+SHOW TABLES;
+```
+
+## Puesta en marcha en AWS
+
+El despliegue se realiza sobre una instancia **AWS EC2 con Ubuntu**.
+
+Los archivos JAR generados se copian a:
+
+```text
+/home/ubuntu/micros
+```
+
+Los servicios son administrados mediante `systemd`.
+
+Servicios configurados:
+
+```text
+biblioteca-eureka.service
+biblioteca-usuarios.service
+biblioteca-catalogo.service
+biblioteca-recursos.service
+biblioteca-gateway.service
+```
+
+Para consultar el estado de un servicio:
+
+```bash
+sudo systemctl status biblioteca-eureka.service
+```
+
+Para reiniciarlo:
+
+```bash
+sudo systemctl restart biblioteca-eureka.service
+```
+
+## CI/CD con GitHub Actions
+
+El proyecto incluye un pipeline de despliegue automatizado mediante **GitHub Actions**.
+
+El flujo general es:
+
+```text
+Push a main
+→ Checkout del código
+→ Configuración de JDK 21
+→ Compilación con Maven
+→ Generación de JARs
+→ Copia de JARs a EC2 mediante SCP
+→ Configuración de variables de entorno
+→ Reinicio de servicios systemd
+→ Health checks automáticos
+```
+
+El pipeline verifica que cada servicio quede disponible antes de continuar con el siguiente.
+
+## Estrategia de trabajo con Git
+
+Para esta evaluación se trabajó únicamente sobre la rama:
+
+```text
+main
+```
+
+No se utilizaron ramas `develop`, `feature` ni `hotfix`, ya que para esta actividad se definió trabajar directamente sobre `main`.
+
+Los cambios se fueron registrando mediante commits con mensajes descriptivos siguiendo una convención similar a:
+
+```text
+fix: corrige scripts SQL y externaliza secreto JWT
+ci: agrega workflow de compilacion
+ci: agrega copia de jars a EC2
+ci: configura variables de entorno desde GitHub Secrets
+ci: agrega reinicio y health checks al despliegue
+```
+
+## Proyecto en funcionamiento
+
+Reemplazar `ip_publica` por la IP pública vigente de la instancia EC2.
+
+### Eureka
+
+```text
+http://ip_publica:8761/
+```
+
+Health:
+
+```text
+http://ip_publica:8761/actuator/health
+```
+
+### Usuarios
+
+Swagger:
+
+```text
+http://ip_publica:9001/swagger-ui/index.html
+```
+
+Health:
+
+```text
+http://ip_publica:9001/actuator/health
+```
+
+### Catálogo
+
+Swagger:
+
+```text
+http://ip_publica:9002/swagger-ui/index.html
+```
+
+Health:
+
+```text
+http://ip_publica:9002/actuator/health
+```
+
+### Recursos
+
+Swagger:
+
+```text
+http://ip_publica:9003/swagger-ui/index.html
+```
+
+Health:
+
+```text
+http://ip_publica:9003/actuator/health
+```
+
+### API Gateway
+
+Health:
+
+```text
+http://ip_publica:9000/actuator/health
+```
+
+## Pruebas realizadas
+
+Se validó correctamente:
+
+- Registro de servicios en Eureka.
+- Health checks en estado `UP`.
+- Swagger disponible en los tres microservicios.
+- Login en `ms-usuarios`.
+- Generación de token JWT.
+- Uso del token JWT en `ms-catalogo` y `ms-recursos`.
+- Respuestas HTTP `200`.
+- Conexión de los microservicios con Amazon RDS.
+- Despliegue automático mediante GitHub Actions.
+
+## Seguridad
+
+Se aplicaron las siguientes medidas:
+
+- Credenciales fuera del repositorio.
+- Uso de GitHub Secrets.
+- JWT externalizado mediante variable de entorno.
+- Archivos de entorno con permisos restringidos en EC2.
+- Uso de Security Groups para controlar acceso a EC2 y RDS.
+- Administración de servicios mediante `systemd`.
+
+
+## Uso de Inteligencia Artificial
+
+Se utilizó inteligencia artificial como apoyo para redacción del README, revisión de comandos y organización del proceso. Las decisiones, validaciones, pruebas y conclusiones técnicas fueron revisadas por el equipo.
